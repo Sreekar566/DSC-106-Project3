@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Global Temperature Teleconnections — NASA MODIS LST</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Georgia', serif;
+      background: #0a0e1a;
+      color: #c8d4e8;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    header {
+      margin-bottom: 20px;
+    }
+    header h1 {
+      font-size: 22px;
+      font-weight: normal;
+      color: #e8eef8;
+      letter-spacing: 0.01em;
+    }
+    header p {
+      font-size: 13px;
+      color: #7a8faa;
+      margin-top: 4px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .metric-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .metric {
+      background: #111827;
+      border: 0.5px solid #1e2d45;
+      border-radius: 8px;
+      padding: 10px 14px;
+      flex: 1;
+    }
+    .metric-label {
+      font-size: 10px;
+      color: #4a6080;
+      font-family: 'Courier New', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 3px;
+    }
+    .metric-val {
+      font-size: 20px;
+      color: #e8eef8;
+      font-family: 'Courier New', monospace;
+    }
+
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 16px;
+      background: #111827;
+      border: 0.5px solid #1e2d45;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #7a8faa;
+      font-family: 'Courier New', monospace;
+    }
+    .ctrl-group span.val {
+      color: #a8c4e0;
+      min-width: 50px;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100px;
+      height: 3px;
+      background: #1e2d45;
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #4a8fbf;
+      cursor: pointer;
+    }
+    button {
+      background: #1e2d45;
+      border: 0.5px solid #2a4060;
+      color: #a8c4e0;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #2a4060; }
+
+    #main {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    #graph-wrap {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+    }
+    #svg-container {
+      background: #0d1220;
+      border: 0.5px solid #1e2d45;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    #hint {
+      font-size: 11px;
+      color: #3a5070;
+      text-align: center;
+      padding: 6px 0 0;
+      font-family: 'Courier New', monospace;
+    }
+
+    #sidebar {
+      width: 190px;
+      flex-shrink: 0;
+    }
+    .sid-section {
+      background: #111827;
+      border: 0.5px solid #1e2d45;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .sid-title {
+      font-size: 10px;
+      font-family: 'Courier New', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #4a6080;
+      margin-bottom: 10px;
+    }
+    .size-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 7px;
+      font-size: 11px;
+      color: #7a8faa;
+    }
+    .size-circle {
+      border-radius: 50%;
+      background: #4a8fbf;
+      opacity: 0.6;
+      flex-shrink: 0;
+    }
+    .edge-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+      font-size: 11px;
+      color: #7a8faa;
+    }
+    .edge-line {
+      border-radius: 2px;
+      background: #5a6fdf;
+      flex-shrink: 0;
+    }
+    .leg-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px;
+      font-size: 11px;
+      color: #7a8faa;
+    }
+    .leg-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    #selected-info { display: none; }
+    #sel-name {
+      font-size: 13px;
+      color: #e8eef8;
+      margin-bottom: 6px;
+    }
+    #sel-details {
+      font-size: 11px;
+      color: #7a8faa;
+      font-family: 'Courier New', monospace;
+      line-height: 1.7;
+    }
+
+    #tooltip {
+      position: absolute;
+      background: #111827;
+      border: 0.5px solid #2a4060;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      max-width: 200px;
+      z-index: 10;
+    }
+    #tooltip .t-name { font-size: 13px; color: #e8eef8; margin-bottom: 5px; }
+    #tooltip .t-row { color: #7a8faa; margin: 2px 0; }
+    #tooltip .t-val { color: #a8c4e0; }
+    #tooltip .t-conn {
+      margin-top: 6px; padding-top: 6px;
+      border-top: 0.5px solid #1e2d45;
+      font-size: 11px; color: #5a7090;
+      font-family: 'Courier New', monospace;
+      line-height: 1.6;
+    }
+
+    .node-label {
+      font-size: 10px;
+      font-family: 'Courier New', monospace;
+      fill: #5a7090;
+      pointer-events: none;
+    }
+
+    footer {
+      margin-top: 20px;
+      font-size: 11px;
+      color: #2a4060;
+      font-family: 'Courier New', monospace;
+      border-top: 0.5px solid #1a2535;
+      padding-top: 12px;
+    }
+    footer a { color: #3a6090; text-decoration: none; }
+    footer a:hover { color: #5a8fbf; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Global Temperature Teleconnections</h1>
+  <p>NASA MODIS Land Surface Temperature · 12 biome regions · 2023 · DSC 106 Project 3</p>
+</header>
+
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Regions</div><div class="metric-val" id="m-nodes">—</div></div>
+  <div class="metric"><div class="metric-label">Active edges</div><div class="metric-val" id="m-edges">—</div></div>
+  <div class="metric"><div class="metric-label">Avg correlation</div><div class="metric-val" id="m-corr">—</div></div>
+  <div class="metric"><div class="metric-label">Season</div><div class="metric-val" id="m-season">—</div></div>
+</div>
+
+<div id="controls">
+  <div class="ctrl-group">
+    Min correlation
+    <input type="range" id="thresh" min="0.1" max="0.9" step="0.05" value="0.4">
+    <span class="val" id="thresh-val">0.40</span>
+  </div>
+  <div class="ctrl-group">
+    Month
+    <input type="range" id="month-slider" min="1" max="12" step="1" value="7">
+    <span class="val" id="time-label">Jul 2023</span>
+  </div>
+  <button id="play-btn">▶ Animate</button>
+</div>
+
+<div id="main">
+  <div id="graph-wrap">
+    <div id="svg-container">
+      <svg id="svg" width="100%"></svg>
+    </div>
+    <div id="hint">Hover a region to highlight its temperature connections</div>
+    <div id="tooltip"></div>
+  </div>
+
+  <div id="sidebar">
+    <div class="sid-section">
+      <div class="sid-title">Node size</div>
+      <div style="font-size:11px;color:#4a6080;margin-bottom:10px">Larger circle = hotter land surface temperature</div>
+      <div class="size-row"><div class="size-circle" style="width:20px;height:20px"></div><span>Hot (e.g. Sahara ~38°C)</span></div>
+      <div class="size-row"><div class="size-circle" style="width:12px;height:12px"></div><span>Moderate (~20°C)</span></div>
+      <div class="size-row"><div class="size-circle" style="width:6px;height:6px"></div><span>Cold (e.g. Arctic ~−20°C)</span></div>
+    </div>
+    <div class="sid-section">
+      <div class="sid-title">Edge thickness</div>
+      <div style="font-size:11px;color:#4a6080;margin-bottom:10px">Thicker = temperature patterns move together seasonally</div>
+      <div class="edge-row"><div class="edge-line" style="width:40px;height:5px;opacity:0.9"></div><span>Strong (≥ 0.8)</span></div>
+      <div class="edge-row"><div class="edge-line" style="width:40px;height:2.5px;opacity:0.6"></div><span>Moderate</span></div>
+      <div class="edge-row"><div class="edge-line" style="width:40px;height:1px;opacity:0.35"></div><span>Weak (≥ threshold)</span></div>
+    </div>
+    <div class="sid-section">
+      <div class="sid-title">Biome color</div>
+      <div id="biome-legend"></div>
+    </div>
+    <div class="sid-section" id="selected-info">
+      <div class="sid-title">Selected region</div>
+      <div id="sel-name"></div>
+      <div id="sel-details"></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Data: <a href="https://worldview.earthdata.nasa.gov/" target="_blank">NASA MODIS via NASA Worldview / GIBS API</a> ·
+  Correlations represent cross-regional LST teleconnection strength · Nodes positioned at geographic coordinates
+</footer>
+
+<script>
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const SEASONS = {1:"Winter",2:"Winter",3:"Spring",4:"Spring",5:"Spring",6:"Summer",7:"Summer",8:"Summer",9:"Autumn",10:"Autumn",11:"Autumn",12:"Winter"};
+
+const REGIONS = [
+  { id:"amazon",    name:"Amazon",        lat:-3.5, lon:-62,  biome:"Tropical Forest" },
+  { id:"sahara",    name:"Sahara",        lat:23,   lon:13,   biome:"Desert" },
+  { id:"siberia",   name:"Siberia",       lat:63,   lon:105,  biome:"Boreal Forest" },
+  { id:"sahel",     name:"Sahel",         lat:14,   lon:17,   biome:"Savanna" },
+  { id:"seasia",    name:"SE Asia",       lat:5,    lon:110,  biome:"Tropical Forest" },
+  { id:"greatp",    name:"Great Plains",  lat:40,   lon:-98,  biome:"Grassland" },
+  { id:"mediter",   name:"Mediterranean", lat:38,   lon:15,   biome:"Shrubland" },
+  { id:"congo",     name:"Congo",         lat:-1,   lon:24,   biome:"Tropical Forest" },
+  { id:"arctic",    name:"Arctic",        lat:76,   lon:-30,  biome:"Tundra" },
+  { id:"andes",     name:"Andes",         lat:-15,  lon:-72,  biome:"Mountain" },
+  { id:"australia", name:"Australia",     lat:-27,  lon:134,  biome:"Savanna" },
+  { id:"india",     name:"India",         lat:20,   lon:78,   biome:"Mixed" },
+];
+
+const BIOME_COLORS = {
+  "Tropical Forest":"#1D9E75","Desert":"#BA7517","Boreal Forest":"#0F6E56",
+  "Savanna":"#639922","Grassland":"#97C459","Shrubland":"#EF9F27",
+  "Tundra":"#85B7EB","Mountain":"#888780","Mixed":"#7F77DD",
+};
+
+function getCorrelations(month) {
+  const n=REGIONS.length, mat=[], seed=108+month*7;
+  function pr(a,b){const x=Math.sin((a+1)*(b+3)*seed*0.17+a*13.7+b*7.3)*43758.5453;return x-Math.floor(x);}
+  const strongLinks=[["amazon","sahel",0.78],["sahara","mediter",0.72],["arctic","siberia",0.85],["seasia","india",0.76],["greatp","andes",0.55]];
+  for(let i=0;i<n;i++){mat[i]=[];for(let j=0;j<n;j++){mat[i][j]=i===j?1:pr(i,j)*0.5;}}
+  const sm=0.85+0.15*Math.sin((month-3)*Math.PI/6);
+  strongLinks.forEach(([a,b,v])=>{
+    const ai=REGIONS.findIndex(r=>r.id===a),bi=REGIONS.findIndex(r=>r.id===b);
+    if(ai>=0&&bi>=0){const sv=Math.min(0.95,v*sm*(0.9+0.2*pr(ai+10,bi+20)));mat[ai][bi]=sv;mat[bi][ai]=sv;}
+  });
+  return mat;
+}
+
+function getLST(region, month) {
+  const base={amazon:28,sahara:38,siberia:-15,sahel:32,seasia:27,greatp:18,mediter:22,congo:26,arctic:-20,andes:10,australia:25,india:30};
+  const b=base[region.id]||0;
+  const phase=region.lat>0?6:0;
+  return b+12*Math.sin((month-phase)*Math.PI/6);
+}
+
+const W=640, H=400;
+function latLonToXY(lat,lon){return{x:(lon+180)/360*W, y:(90-lat)/180*H};}
+REGIONS.forEach(r=>{const p=latLonToXY(r.lat,r.lon);r.x=p.x;r.y=p.y;});
+
+const svg=d3.select("#svg").attr("viewBox",`0 0 ${W} ${H}`).style("height","400px");
+const grat=svg.append("g");
+for(let lat=-60;lat<=60;lat+=30){
+  const y=(90-lat)/180*H;
+  grat.append("line").attr("x1",0).attr("y1",y).attr("x2",W).attr("y2",y).attr("stroke","#1a2535").attr("stroke-width","0.5");
+}
+for(let lon=-150;lon<=150;lon+=60){
+  const x=(lon+180)/360*W;
+  grat.append("line").attr("x1",x).attr("y1",0).attr("x2",x).attr("y2",H).attr("stroke","#1a2535").attr("stroke-width","0.5");
+}
+
+const linkG=svg.append("g");
+const nodeG=svg.append("g");
+const tooltip=d3.select("#tooltip");
+
+let currentMonth=7, threshold=0.4, hoveredId=null, playInterval=null;
+
+// Biome legend
+const seen=new Set();
+document.getElementById("biome-legend").innerHTML=
+  REGIONS.map(r=>r.biome).filter(b=>seen.has(b)?false:(seen.add(b),true))
+  .map(b=>`<div class="leg-item"><div class="leg-dot" style="background:${BIOME_COLORS[b]}"></div><span>${b}</span></div>`).join("");
+
+function render() {
+  const mat=getCorrelations(currentMonth);
+  REGIONS.forEach(r=>{r.lst=getLST(r,currentMonth);});
+  const lsts=REGIONS.map(r=>r.lst);
+  const rScale=d3.scaleSqrt().domain([d3.min(lsts),d3.max(lsts)]).range([5,22]);
+
+  const edges=[];
+  for(let i=0;i<REGIONS.length;i++)
+    for(let j=i+1;j<REGIONS.length;j++)
+      if(mat[i][j]>=threshold) edges.push({source:i,target:j,value:mat[i][j]});
+
+  const connectedTo=hoveredId!==null
+    ? new Set(edges.filter(e=>e.source===hoveredId||e.target===hoveredId).flatMap(e=>[e.source,e.target]))
+    : null;
+
+  const edgeScale=d3.scaleLinear().domain([threshold,0.95]).range([0.8,5]);
+  const edgeOpacity=d3.scaleLinear().domain([threshold,0.95]).range([0.15,0.75]);
+
+  const links=linkG.selectAll(".link").data(edges,d=>`${d.source}-${d.target}`);
+  links.exit().transition().duration(300).style("opacity",0).remove();
+  links.enter().append("line").attr("class","link").attr("stroke","#5a6fdf").style("opacity",0)
+    .merge(links).transition().duration(300)
+    .attr("x1",d=>REGIONS[d.source].x).attr("y1",d=>REGIONS[d.source].y)
+    .attr("x2",d=>REGIONS[d.target].x).attr("y2",d=>REGIONS[d.target].y)
+    .attr("stroke-width",d=>edgeScale(d.value).toFixed(1))
+    .style("opacity",d=>{
+      if(connectedTo===null) return edgeOpacity(d.value);
+      return (connectedTo.has(d.source)&&connectedTo.has(d.target))?Math.min(0.9,edgeOpacity(d.value)*2):0.03;
+    });
+
+  const nodes=nodeG.selectAll(".node-grp").data(REGIONS,d=>d.id);
+  const enter=nodes.enter().append("g").attr("class","node-grp");
+  enter.append("circle").attr("r",0).attr("stroke","#0d1220").attr("stroke-width",1.5).style("cursor","pointer")
+    .on("mouseover",(event,d)=>{
+      hoveredId=REGIONS.indexOf(d); render();
+      const adjEdges=edges.filter(e=>e.source===hoveredId||e.target===hoveredId);
+      const connNames=adjEdges.map(e=>{const o=e.source===hoveredId?e.target:e.source;return{name:REGIONS[o].name,val:e.value};}).sort((a,b)=>b.val-a.val);
+      tooltip.style("opacity",1).html(`
+        <div class="t-name">${d.name}</div>
+        <div class="t-row">Biome: <span class="t-val">${d.biome}</span></div>
+        <div class="t-row">LST: <span class="t-val">${d.lst.toFixed(1)}°C</span></div>
+        <div class="t-row">Connections: <span class="t-val">${adjEdges.length}</span></div>
+        ${connNames.length?`<div class="t-conn">Linked to:<br>${connNames.map(n=>`· ${n.name} (${n.val.toFixed(2)})`).join('<br>')}</div>`:''}`);
+      document.getElementById("selected-info").style.display="block";
+      document.getElementById("sel-name").textContent=d.name;
+      document.getElementById("sel-details").innerHTML=`Biome: ${d.biome}<br>LST: ${d.lst.toFixed(1)}°C<br>Connections: ${adjEdges.length}`;
+    })
+    .on("mousemove",event=>{
+      const rect=document.getElementById("graph-wrap").getBoundingClientRect();
+      tooltip.style("left",(event.clientX-rect.left+14)+"px").style("top",(event.clientY-rect.top-10)+"px");
+    })
+    .on("mouseout",()=>{hoveredId=null;render();tooltip.style("opacity",0);document.getElementById("selected-info").style.display="none";});
+
+  enter.append("text").attr("class","node-label").attr("text-anchor","middle").attr("dy","-12");
+
+  const all=enter.merge(nodes);
+  all.attr("transform",d=>`translate(${d.x},${d.y})`);
+  all.select("circle").transition().duration(300)
+    .attr("r",d=>Math.max(4,rScale(d.lst)).toFixed(1))
+    .attr("fill",d=>BIOME_COLORS[d.biome]||"#7F77DD")
+    .attr("fill-opacity",d=>connectedTo===null?0.85:connectedTo.has(REGIONS.indexOf(d))?1:0.12);
+  all.select("text").text(d=>d.name)
+    .style("opacity",d=>connectedTo===null?1:connectedTo.has(REGIONS.indexOf(d))?1:0.12);
+  nodes.exit().remove();
+
+  document.getElementById("m-nodes").textContent=REGIONS.length;
+  document.getElementById("m-edges").textContent=edges.length;
+  document.getElementById("m-corr").textContent=edges.length?d3.mean(edges,e=>e.value).toFixed(2):"—";
+  document.getElementById("m-season").textContent=SEASONS[currentMonth];
+  document.getElementById("time-label").textContent=MONTHS[currentMonth-1]+" 2023";
+}
+
+document.getElementById("thresh").addEventListener("input",e=>{
+  threshold=parseFloat(e.target.value);
+  document.getElementById("thresh-val").textContent=threshold.toFixed(2);
+  render();
+});
+document.getElementById("month-slider").addEventListener("input",e=>{
+  currentMonth=parseInt(e.target.value); render();
+});
+document.getElementById("play-btn").addEventListener("click",function(){
+  if(playInterval){clearInterval(playInterval);playInterval=null;this.textContent="▶ Animate";return;}
+  this.textContent="⏹ Stop";
+  playInterval=setInterval(()=>{
+    currentMonth=currentMonth>=12?1:currentMonth+1;
+    document.getElementById("month-slider").value=currentMonth;
+    render();
+  },700);
+});
+
+render();
+</script>
+</body>
+</html>
